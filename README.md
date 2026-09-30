@@ -1,4 +1,4 @@
-# 🍕 JWT Pizza
+# 🍕 jwt-pizza
 
 [![CI Pipeline](https://github.com/garrett-webster/jwt-pizza/actions/workflows/ci.yml/badge.svg)](https://github.com/garrett-webster/jwt-pizza/actions/workflows/ci.yml)
 ![Coverage badge](https://pizza-factory.cs329.click/api/badge/garwebs/jwtpizzacoverage)
