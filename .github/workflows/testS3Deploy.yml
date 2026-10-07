@@ -24,9 +24,6 @@ jobs:
           aws-region: us-east-1
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT }}:role/${{ secrets.CI_IAM_ROLE }}
 
-      - name: Check AWS account
-        run: aws sts get-caller-identity
-
       - name: Push to AWS S3
         run: |
           mkdir dist
