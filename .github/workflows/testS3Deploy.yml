@@ -17,6 +17,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check AWS account
+        run: aws sts get-caller-identity
       - name: Create OIDC token to AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
