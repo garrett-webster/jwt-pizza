@@ -53,8 +53,9 @@ jobs:
       pages: write
       id-token: write
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: production
+      url: https://pizza.garrett-webster.com
+
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to GitHub Pages
