@@ -83,13 +83,29 @@ export async function mockPizzaService(page) {
             return json({ endpoints: [{ requiresAuth: true, method: 'POST', path: '/api/order', description: 'Order a pizza', example: '{ "items": [] }', response: { jwt } }] });
         }
 
-        const protectedEndpoint = pathname === '/api/user/me' || pathname === '/api/order' || pathname.startsWith('/api/franchise');
+        const protectedEndpoint = pathname.startsWith('/api/user') || pathname === '/api/order' || pathname.startsWith('/api/franchise');
         if (protectedEndpoint) {
             if (!loggedInUser) return json({ message: 'Unauthorized' }, 401);
             expect(request.headers().authorization).toBe(`Bearer ${token}`);
         }
 
         if (endpoint === 'GET /api/user/me') return json(loggedInUser);
+        const userPath = pathname.match(/^\/api\/user\/(\d+)$/);
+        if (method === 'PUT' && userPath) {
+            const id = Number(userPath[1]);
+            const isAdmin = loggedInUser.roles.some((role) => role.role === 'admin');
+            if (id !== loggedInUser.id && !isAdmin) return json({ message: 'unauthorized' }, 403);
+            const body = request.postDataJSON();
+            expect(body.id).toBe(id);
+            const user = users.find((user) => user.id === id);
+            expect(user).toBeDefined();
+            if (users.some((other) => other.id !== id && other.email === body.email)) return json({ message: 'Email already registered' }, 409);
+            user.name = body.name;
+            user.email = body.email;
+            if (body.password) user.password = body.password;
+            if (id === loggedInUser.id) loggedInUser = publicUser(user);
+            return json({ user: publicUser(user), token });
+        }
         if (endpoint === 'GET /api/order') {
             return json({ id: loggedInUser.id, dinerId: loggedInUser.id, orders: orders.filter((entry) => entry.dinerId === loggedInUser.id).map((entry) => entry.order) });
         }
