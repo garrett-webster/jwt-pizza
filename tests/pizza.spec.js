@@ -231,12 +231,12 @@ test.describe('Admin franchises', () => {
     test('filters franchises by name', async ({ page }) => {
         await page.getByPlaceholder('Filter franchises').fill('unknown');
         await page.getByRole('button', { name: 'Submit' }).click();
-        await expect(page.locator('tbody')).toHaveCount(0);
+        await expect(page.getByRole('table', { name: 'Franchises' }).locator('tbody')).toHaveCount(0);
 
         await page.getByPlaceholder('Filter franchises').fill('pocket');
         await page.getByRole('button', { name: 'Submit' }).click();
 
-        await expect(page.locator('tbody')).toHaveCount(1);
+        await expect(page.getByRole('table', { name: 'Franchises' }).locator('tbody')).toHaveCount(1);
         await expect(page.getByRole('cell', { name: 'pizzaPocket', exact: true })).toBeVisible();
     });
 

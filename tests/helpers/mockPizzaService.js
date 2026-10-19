@@ -90,6 +90,18 @@ export async function mockPizzaService(page) {
         }
 
         if (endpoint === 'GET /api/user/me') return json(loggedInUser);
+        if (endpoint === 'GET /api/user') {
+            if (!loggedInUser.roles.some((role) => role.role === 'admin')) return json({ message: 'unauthorized' }, 403);
+            const pageNumber = Number(searchParams.get('page'));
+            const limit = Number(searchParams.get('limit'));
+            expect(pageNumber).toBeGreaterThanOrEqual(1);
+            expect(limit).toBeGreaterThan(0);
+            const name = searchParams.get('name');
+            expect(name).not.toBeNull();
+            const filtered = users.filter((user) => user.name.toLowerCase().includes(name.replaceAll('*', '').toLowerCase()));
+            const start = (pageNumber - 1) * limit;
+            return json({ users: filtered.slice(start, start + limit).map(publicUser), more: start + limit < filtered.length });
+        }
         const userPath = pathname.match(/^\/api\/user\/(\d+)$/);
         if (method === 'PUT' && userPath) {
             const id = Number(userPath[1]);
@@ -105,6 +117,20 @@ export async function mockPizzaService(page) {
             if (body.password) user.password = body.password;
             if (id === loggedInUser.id) loggedInUser = publicUser(user);
             return json({ user: publicUser(user), token });
+        }
+        if (method === 'DELETE' && userPath) {
+            const id = Number(userPath[1]);
+            const isAdmin = loggedInUser.roles.some((role) => role.role === 'admin');
+            if (id !== loggedInUser.id && !isAdmin) return json({ message: 'unauthorized' }, 403);
+            const index = users.findIndex((user) => user.id === id);
+            if (index === -1) return json({ message: 'unknown user' }, 404);
+            const isAdminTarget = users[index].roles.some((role) => role.role === 'admin');
+            if (isAdminTarget && users.filter((user) => user.roles.some((role) => role.role === 'admin')).length === 1) {
+                return json({ message: 'unable to delete the last admin' }, 403);
+            }
+            users.splice(index, 1);
+            if (id === loggedInUser.id) loggedInUser = null;
+            return json({ message: 'user deleted' });
         }
         if (endpoint === 'GET /api/order') {
             return json({ id: loggedInUser.id, dinerId: loggedInUser.id, orders: orders.filter((entry) => entry.dinerId === loggedInUser.id).map((entry) => entry.order) });

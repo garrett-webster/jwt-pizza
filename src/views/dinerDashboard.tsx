@@ -46,9 +46,9 @@ export default function DinerDashboard(props: Props) {
       roles: user.roles,
     };
 
-    await pizzaService.updateUser(updatedUser);
+    const savedUser = await pizzaService.updateUser(updatedUser);
 
-    props.setUser(updatedUser);
+    props.setUser(savedUser);
     setTimeout(() => {
       HSOverlay.close(document.getElementById('hs-jwt-modal')!);
     }, 100);

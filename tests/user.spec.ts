@@ -170,3 +170,115 @@ test.describe('Updating a user with different roles', () => {
         await expect(page.getByRole('main')).toContainText('diner');
     });
 });
+
+test.describe('Admin user management', () => {
+    test.beforeEach(async ({ page }) => {
+        await login(page, 'admin');
+        await page.getByRole('link', { name: 'Admin', exact: true }).click();
+        await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+    });
+
+    const usersTable = (page) => page.getByRole('table', { name: 'Users' });
+    const userRow = (page, name: string) => usersTable(page).getByRole('row').filter({ has: page.getByRole('cell', { name, exact: true }) });
+
+    test('lists all users with their email and role', async ({ page }) => {
+        await expect(userRow(page, 'Admin User')).toContainText('a@jwt.com');
+        await expect(userRow(page, 'Admin User')).toContainText('admin');
+        await expect(userRow(page, 'Franchise Owner')).toContainText('f@jwt.com');
+        await expect(userRow(page, 'Franchise Owner')).toContainText('franchisee');
+        await expect(userRow(page, 'Kai Chen')).toContainText('d@jwt.com');
+        await expect(userRow(page, 'Kai Chen')).toContainText('diner');
+    });
+
+    test('filters users by name', async ({ page }) => {
+        await page.getByPlaceholder('Filter users').fill('kai');
+        await page.getByRole('button', { name: 'Search' }).click();
+
+        await expect(userRow(page, 'Kai Chen')).toBeVisible();
+        await expect(userRow(page, 'Admin User')).toHaveCount(0);
+        await expect(userRow(page, 'Franchise Owner')).toHaveCount(0);
+    });
+
+    test('shows no users when the filter matches nothing', async ({ page }) => {
+        await page.getByPlaceholder('Filter users').fill('nobody');
+        await page.getByRole('button', { name: 'Search' }).click();
+
+        await expect(usersTable(page).locator('tbody tr')).toHaveCount(0);
+    });
+
+    test('does not offer to delete the signed-in admin', async ({ page }) => {
+        await expect(userRow(page, 'Admin User').getByRole('button', { name: 'Delete' })).toHaveCount(0);
+        await expect(userRow(page, 'Kai Chen').getByRole('button', { name: 'Delete' })).toBeVisible();
+    });
+
+    test('deletes a user after confirming', async ({ page }) => {
+        await userRow(page, 'Kai Chen').getByRole('button', { name: 'Delete' }).click();
+        await expect(page.getByRole('heading', { name: 'Delete user', exact: true })).toBeVisible();
+        await expect(page.getByRole('main')).toContainText('Kai Chen');
+
+        await page.getByRole('button', { name: 'Delete', exact: true }).click();
+
+        await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+        await expect(userRow(page, 'Kai Chen')).toHaveCount(0);
+        await expect(userRow(page, 'Franchise Owner')).toBeVisible();
+    });
+
+    test('keeps the user when the deletion is cancelled', async ({ page }) => {
+        await userRow(page, 'Kai Chen').getByRole('button', { name: 'Delete' }).click();
+
+        await page.getByRole('button', { name: 'Cancel' }).click();
+
+        await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+        await expect(userRow(page, 'Kai Chen')).toBeVisible();
+    });
+
+    test('a deleted user can no longer log in', async ({ page }) => {
+        await userRow(page, 'Kai Chen').getByRole('button', { name: 'Delete' }).click();
+        await page.getByRole('button', { name: 'Delete', exact: true }).click();
+        await expect(userRow(page, 'Kai Chen')).toHaveCount(0);
+
+        await logout(page);
+        await page.getByRole('link', { name: 'Login', exact: true }).click();
+        await submitLogin(page, accounts.diner);
+
+        await expect(page.getByRole('main')).toContainText('Unauthorized');
+    });
+
+    test('shows the error when the deletion fails', async ({ page }) => {
+        await page.route(/\/api\/user\/\d+$/, (route) => route.request().method() === 'DELETE' ? route.fulfill({ status: 404, json: { message: 'unknown user' } }) : route.fallback());
+        await userRow(page, 'Kai Chen').getByRole('button', { name: 'Delete' }).click();
+
+        await page.getByRole('button', { name: 'Delete', exact: true }).click();
+
+        await expect(page.getByRole('main')).toContainText('unknown user');
+        await expect(page.getByRole('heading', { name: 'Delete user', exact: true })).toBeVisible();
+    });
+
+    test('pages through the user list', async ({ page }) => {
+        const requestedPages: string[] = [];
+        await page.route(/\/api\/user\?/, (route) => {
+            const pageNumber = new URL(route.request().url()).searchParams.get('page');
+            requestedPages.push(String(pageNumber));
+            const second = pageNumber === '2';
+            return route.fulfill({
+                json: {
+                    users: [{ id: second ? 22 : 21, name: second ? 'Second Page User' : 'First Page User', email: 'p@jwt.com', roles: [{ role: 'diner' }] }],
+                    more: !second,
+                },
+            });
+        });
+        await page.reload();
+        await expect(userRow(page, 'First Page User')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Previous users' })).toBeDisabled();
+
+        await page.getByRole('button', { name: 'Next users' }).click();
+
+        await expect(userRow(page, 'Second Page User')).toBeVisible();
+        await expect(userRow(page, 'First Page User')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Next users' })).toBeDisabled();
+
+        await page.getByRole('button', { name: 'Previous users' }).click();
+        await expect(userRow(page, 'First Page User')).toBeVisible();
+        expect(requestedPages).toEqual(expect.arrayContaining(['1', '2']));
+    });
+});
